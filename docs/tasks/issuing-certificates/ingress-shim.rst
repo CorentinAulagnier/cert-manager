@@ -79,6 +79,14 @@ Certificate resources to be automatically created:
   configuration of the ingress-shim (see above). Namely, a default issuer must be
   specified as arguments to the ingress-shim container.
 
+* ``kubernetes.io/duration: time`` - with this annotation you can choose the
+ duration value you want for the certificate. Otherwise, default value will be
+ used. This fields must be specified using Golang’s time.Time string format
+
+* ``kubernetes.io/renewBefore: time`` - with this annotation you can choose the
+ renewBefore value you want for the certificate. Otherwise, default value will
+ be used. This fields must be specified using Golang’s time.Time string format
+
 * ``certmanager.k8s.io/acme-challenge-type`` - (**DEPRECATED**)
   by default, if the Issuer specified is an ACME issuer (either through
   ingress-shim's defaults, or with one of the above annotations), the

@@ -534,6 +534,50 @@ func TestSync(t *testing.T) {
 			},
 		},
 		{
+			Name:   "should return a certificate with duration and renewBefore different from the default ones",
+			Issuer: acmeClusterIssuer,
+			Ingress: &extv1beta1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "ingress-name",
+					Namespace: gen.DefaultTestNamespace,
+					Annotations: map[string]string{
+						clusterIssuerNameAnnotation: "issuer-name",
+						durationAnnotation:          "24h",
+						renewBeforeAnnotation:       "20h",
+					},
+					UID: types.UID("ingress-name"),
+				},
+				Spec: extv1beta1.IngressSpec{
+					TLS: []extv1beta1.IngressTLS{
+						{
+							Hosts:      []string{"example.com", "www.example.com"},
+							SecretName: "example-com-tls",
+						},
+					},
+				},
+			},
+			ClusterIssuerLister: []runtime.Object{acmeClusterIssuer},
+			ExpectedCreate: []*v1alpha1.Certificate{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "example-com-tls",
+						Namespace:       gen.DefaultTestNamespace,
+						OwnerReferences: buildOwnerReferences("ingress-name", gen.DefaultTestNamespace),
+					},
+					Spec: v1alpha1.CertificateSpec{
+						Duration:    "24h",
+						renewBefore: "20h",
+						DNSNames:    []string{"example.com", "www.example.com"},
+						SecretName:  "example-com-tls",
+						IssuerRef: v1alpha1.ObjectReference{
+							Name: "issuer-name",
+							Kind: "ClusterIssuer",
+						},
+					},
+				},
+			},
+		},
+		{
 			Name:                "should return a basic certificate when no provider specific config is provided",
 			Issuer:              clusterIssuer,
 			DefaultIssuerName:   "issuer-name",

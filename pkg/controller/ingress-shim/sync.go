@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	extv1beta1 "k8s.io/api/extensions/v1beta1"
@@ -46,6 +47,12 @@ const (
 	// created Certificate resource. The Certificate will reference the
 	// specified *ClusterIssuer* instead of normal issuer.
 	clusterIssuerNameAnnotation = "certmanager.k8s.io/cluster-issuer"
+	// durationAnnotation can be used to override the default duration value on the
+	// created Certificate resource
+	durationAnnotation = "certmanager.k8s.io/duration"
+	// renewBefore can be used to override the default renewBefore value on the
+	// created Certificate resource
+	renewBeforeAnnotation = "certmanager.k8s.io/renewBefore"
 	// acmeIssuerChallengeTypeAnnotation can be used to override the default ACME challenge
 	// type to be used when the specified issuer is an ACME issuer
 	acmeIssuerChallengeTypeAnnotation = "certmanager.k8s.io/acme-challenge-type"
@@ -193,6 +200,43 @@ func (c *controller) buildCertificates(ctx context.Context, ing *extv1beta1.Ingr
 			},
 		}
 
+		// Get Duration and RenewBefore values if set
+		annotations := ing.Annotations
+		if annotations == nil {
+			annotations = map[string]string{}
+		}
+		durationAnnotationValue := annotations[durationAnnotation]
+		renewBeforeAnnotationValue := annotations[renewBeforeAnnotation]
+
+		var dur, ren time.Duration
+		log.Info("Flag set ?")
+
+		// If Duration value is set
+		if durationAnnotationValue != "" {
+			log.Info("durationAnnotation = "+durationAnnotationValue)
+
+			dur, durError := time.ParseDuration(durationAnnotationValue)
+			//duration = &metav1.Duration{dur}
+
+			if durError != nil {
+				return nil, nil, err
+			}
+			crt.Spec.Duration.Duration = dur //duration
+		}
+
+		// If RenewBefore value is set
+		if renewBeforeAnnotationValue != "" {
+			log.Info("renewBeforeAnnotation = "+renewBeforeAnnotationValue)
+
+			ren, renError := time.ParseDuration(renewBeforeAnnotationValue)
+			//renewBefore = &metav1.Duration{ren}
+
+			if renError != nil {
+				return nil, nil, err
+			}
+			crt.Spec.RenewBefore.Duration = ren //renewBefore
+		}
+
 		err = c.setIssuerSpecificConfig(crt, issuer, ing, tls)
 		if err != nil {
 			return nil, nil, err
@@ -226,6 +270,18 @@ func (c *controller) buildCertificates(ctx context.Context, ing *extv1beta1.Ingr
 			updateCrt.Spec.IssuerRef.Name = issuer.GetObjectMeta().Name
 			updateCrt.Spec.IssuerRef.Kind = issuerKind
 			updateCrt.Labels = ing.Labels
+
+			// If Duration is set
+			if durationAnnotationValue != "" {
+				updateCrt.Spec.Duration.Duration = dur //duration
+			}
+
+			// If RenewBefore value is set
+			if renewBeforeAnnotationValue != "" {
+				updateCrt.Spec.RenewBefore.Duration = ren //renewBefore
+			}
+
+
 			err = c.setIssuerSpecificConfig(updateCrt, issuer, ing, tls)
 			if err != nil {
 				return nil, nil, err
@@ -301,6 +357,14 @@ func certNeedsUpdate(a, b *v1alpha1.Certificate) bool {
 	}
 
 	if a.Spec.IssuerRef.Kind != b.Spec.IssuerRef.Kind {
+		return true
+	}
+
+	if a.Spec.Duration != b.Spec.Duration {
+		return true
+	}
+
+	if a.Spec.RenewBefore != b.Spec.RenewBefore {
 		return true
 	}
 
